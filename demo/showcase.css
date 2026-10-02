@@ -1,0 +1,440 @@
+:root {
+  --bg: #f6f5f2;
+  --fg: #16161a;
+  --muted: #6a6a72;
+  --line: rgb(22 22 26 / 0.12);
+  --chrome: #e9e8e4;
+  --accent: #5b5bf0;
+  --code-bg: #ffffff;
+  --tok-c: #8a8a93;
+  --tok-s: #0f7a5c;
+  --tok-v: #7048e8;
+  --tok-t: #c2410c;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f0f12;
+    --fg: #ececf1;
+    --muted: #9a9aa6;
+    --line: rgb(236 236 241 / 0.12);
+    --chrome: #1c1c22;
+    --accent: #8b8bff;
+    --code-bg: #16161b;
+    --tok-c: #73737e;
+    --tok-s: #6ee7b7;
+    --tok-v: #c4b5fd;
+    --tok-t: #fdba74;
+    color-scheme: dark;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html {
+  background: var(--bg);
+}
+body {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 40px clamp(16px, 4vw, 48px) 32px;
+  color: var(--fg);
+  font:
+    400 16px/1.55 'Inter',
+    system-ui,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button {
+  font: inherit;
+  color: inherit;
+}
+a {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+/* ------------------------------------------------------------------ intro */
+
+.intro {
+  max-width: 780px;
+}
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 28px;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+.wordmark .glyph {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--fg);
+  color: var(--bg);
+}
+.wordmark .glyph svg {
+  width: 18px;
+  height: 18px;
+}
+.intro h1 {
+  margin: 0 0 16px;
+  font-size: clamp(30px, 4.2vw, 54px);
+  line-height: 1.04;
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+.intro .lede {
+  margin: 0;
+  max-width: 62ch;
+  font-size: 17px;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+/* ----------------------------------------------------------------- layout */
+
+.layout {
+  display: grid;
+  gap: 40px;
+  margin-top: 44px;
+}
+/* Grid items default to min-width: auto and would grow to the longest code line. */
+.layout > * {
+  min-width: 0;
+}
+@media (min-width: 1180px) {
+  .layout {
+    grid-template-columns: 300px minmax(0, 1fr);
+    grid-template-areas: 'controls stage' 'controls code';
+    column-gap: 56px;
+  }
+  .controls {
+    grid-area: controls;
+    position: sticky;
+    top: 24px;
+    align-self: start;
+  }
+  .stage {
+    grid-area: stage;
+  }
+  .code {
+    grid-area: code;
+  }
+}
+
+/* --------------------------------------------------------------- controls */
+
+.controls {
+  display: grid;
+  gap: 30px;
+}
+.control h2,
+.code h2 {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 13px 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 140ms,
+    border-color 140ms,
+    color 140ms;
+}
+.chip svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.chip:hover {
+  border-color: color-mix(in srgb, var(--fg) 35%, transparent);
+}
+.chip[aria-checked='true'] {
+  background: var(--fg);
+  border-color: var(--fg);
+  color: var(--bg);
+}
+.chip:focus-visible,
+.grid9 button:focus-visible,
+.device-toggle button:focus-visible,
+.copy:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.swatch {
+  display: inline-flex;
+}
+.swatch i {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 1.5px var(--bg),
+    inset 0 0 0 1px rgb(0 0 0 / 0.12);
+}
+.swatch i + i {
+  margin-left: -4px;
+}
+.blurb {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+  min-height: 2.8em;
+}
+
+.positions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.grid9 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  width: 132px;
+  aspect-ratio: 4 / 3;
+  padding: 6px;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.grid9 button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+.grid9 button::before {
+  content: '';
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--fg) 40%, transparent);
+  transition:
+    background-color 140ms,
+    transform 140ms;
+}
+.grid9 button:hover {
+  background: var(--line);
+}
+.grid9 button[aria-checked='true']::before {
+  background: var(--fg);
+  border-color: var(--fg);
+  transform: scale(1.25);
+}
+
+/* ------------------------------------------------------------------ stage */
+
+.device-toggle {
+  display: inline-flex;
+  margin-bottom: 18px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+.device-toggle button {
+  padding: 5px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+}
+.device-toggle button[aria-pressed='true'] {
+  background: var(--fg);
+  color: var(--bg);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.code pre:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (max-width: 760px) {
+  .device-toggle [data-device='both'] {
+    display: none;
+  }
+}
+
+.frames {
+  display: flex;
+  align-items: flex-end;
+  gap: 28px;
+  min-width: 0;
+}
+.frames[data-device='desktop'] .phone,
+.frames[data-device='phone'] .desktop {
+  display: none;
+}
+.frames[data-device='phone'] {
+  justify-content: center;
+}
+
+.device {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.device figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.screen {
+  position: relative;
+  overflow: hidden;
+  background: #fff;
+}
+.screen iframe {
+  display: block;
+  border: 0;
+  transform: scale(var(--s, 1));
+  transform-origin: 0 0;
+}
+
+.browser-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+  background: var(--chrome);
+}
+.browser-bar i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--fg) 18%, transparent);
+}
+.browser-bar span {
+  flex: 1;
+  max-width: 440px;
+  margin-left: 14px;
+  padding: 0 10px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--bg);
+  font:
+    500 12px/22px 'JetBrains Mono',
+    ui-monospace,
+    monospace;
+  color: var(--muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.desktop .screen {
+  border: 1px solid var(--line);
+  border-radius: 0 0 12px 12px;
+  box-shadow: 0 30px 60px -30px rgb(0 0 0 / 0.35);
+}
+.phone .screen {
+  margin: 11px;
+  border-radius: calc(54px * var(--s, 1));
+  outline: 11px solid #0c0c0e;
+  box-shadow:
+    0 0 0 12px color-mix(in srgb, var(--fg) 14%, transparent),
+    0 30px 60px -20px rgb(0 0 0 / 0.45);
+}
+.phone figcaption {
+  padding-top: 8px;
+}
+
+/* ------------------------------------------------------------------- code */
+
+.code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.code-head h2 {
+  margin: 0;
+}
+.copy {
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.copy:hover {
+  border-color: color-mix(in srgb, var(--fg) 35%, transparent);
+}
+.code pre {
+  margin: 14px 0 0;
+  max-height: 560px;
+  padding: 22px 24px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--code-bg);
+  font:
+    400 13px/1.65 'JetBrains Mono',
+    ui-monospace,
+    monospace;
+  tab-size: 2;
+}
+.tok-c {
+  color: var(--tok-c);
+}
+.tok-s {
+  color: var(--tok-s);
+}
+.tok-v {
+  color: var(--tok-v);
+}
+.tok-t {
+  color: var(--tok-t);
+}
+
+.outro {
+  margin-top: 56px;
+  font-size: 13px;
+  color: var(--muted);
+}

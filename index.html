@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>unfold-nav</title>
+    <meta
+      name="description"
+      content="One button for your whole site map. Press and hold — your pages unfold around it as a graph. Same navigation on desktop and mobile."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
+    <link rel="stylesheet" href="./demo/showcase.css" />
+  </head>
+  <body>
+    <header class="intro">
+      <p class="wordmark"><span class="glyph" aria-hidden="true"></span>unfold-nav</p>
+      <h1>One button. Your whole site map, unfolding around it.</h1>
+      <p class="lede">
+        Press and hold the button in either frame, drag along the graph and let go on a page. Or just tap it, or Tab to
+        it and use the arrow keys. The same component adapts to desktop and phone. Pick an industry and a design to see
+        how far it adapts.
+      </p>
+    </header>
+
+    <main class="layout">
+      <section class="controls" aria-label="Showcase settings">
+        <div class="control">
+          <h2>Industry</h2>
+          <div class="chips" id="industries" role="radiogroup" aria-label="Industry"></div>
+        </div>
+        <div class="control">
+          <h2>Design</h2>
+          <div class="chips" id="designs" role="radiogroup" aria-label="Design"></div>
+          <p class="blurb" id="design-blurb"></p>
+        </div>
+        <div class="control">
+          <h2>Position</h2>
+          <div class="positions">
+            <div class="grid9" id="positions" role="radiogroup" aria-label="Position"></div>
+            <button type="button" class="chip" id="inline" role="radio" aria-checked="false">In the header</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="stage" aria-label="Preview">
+        <div class="device-toggle" role="group" aria-label="Preview size">
+          <button type="button" data-device="both" aria-pressed="true">Both</button>
+          <button type="button" data-device="desktop" aria-pressed="false">Desktop</button>
+          <button type="button" data-device="phone" aria-pressed="false">Phone</button>
+        </div>
+        <div class="frames" id="frames">
+          <figure class="device desktop">
+            <div class="browser-bar" aria-hidden="true"><i></i><i></i><i></i><span id="url"></span></div>
+            <div class="screen">
+              <iframe id="frame-desktop" title="Desktop preview" width="1280" height="800"></iframe>
+            </div>
+            <figcaption>
+              Desktop · 1280 × 800 <a id="open-desktop" target="_blank" rel="noopener">Open full screen ↗</a>
+            </figcaption>
+          </figure>
+          <figure class="device phone">
+            <div class="screen"><iframe id="frame-phone" title="Phone preview" width="390" height="844"></iframe></div>
+            <figcaption>
+              Phone · 390 × 844 <a id="open-phone" target="_blank" rel="noopener">Open on your phone ↗</a>
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="code" aria-labelledby="code-title">
+        <div class="code-head">
+          <h2 id="code-title">Use this look</h2>
+          <button type="button" class="copy" id="copy">Copy</button>
+          <span class="sr-only" id="copy-status" role="status"></span>
+        </div>
+        <pre tabindex="0" aria-labelledby="code-title"><code id="snippet"></code></pre>
+      </section>
+    </main>
+
+    <footer class="outro">
+      <p>unfold-nav is a zero-dependency Web Component · MIT · Icons by Lucide · All brands shown are fictional.</p>
+    </footer>
+
+    <script type="module" src="./demo/showcase.ts"></script>
+  </body>
+</html>

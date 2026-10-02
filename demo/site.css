@@ -1,0 +1,663 @@
+/* Mock websites for the showcase. One base layout, one palette + artwork per industry. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #fff;
+  --fg: #111;
+  --muted: #666;
+  --accent: #5b5bf0;
+  --rule: rgb(0 0 0 / 0.1);
+  --display: 'Inter', system-ui, sans-serif;
+  --body: 'Inter', system-ui, sans-serif;
+  --pad: clamp(20px, 5vw, 72px);
+  color-scheme: light;
+}
+:root.is-dark {
+  color-scheme: dark;
+  --rule: rgb(255 255 255 / 0.12);
+}
+
+html,
+body {
+  margin: 0;
+}
+body {
+  min-height: 100vh;
+  /* The space the button takes along its edge, published by unfold-nav. */
+  padding: 0 var(--unfold-inset-right, 0px) var(--unfold-inset-bottom, 0px) var(--unfold-inset-left, 0px);
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 17px/1.55 var(--body);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* ------------------------------------------------------------------ layout */
+
+.site-header {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-height: 108px;
+  padding: 24px var(--pad);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+  font: 700 21px/1 var(--display);
+  letter-spacing: -0.01em;
+}
+.brand svg {
+  width: 26px;
+  height: 26px;
+  color: var(--accent);
+}
+.meta {
+  margin-left: auto;
+  font-size: 14px;
+  color: var(--muted);
+}
+.nav-slot {
+  display: flex;
+  align-items: center;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  align-items: center;
+  gap: clamp(28px, 5vw, 88px);
+  min-height: calc(100vh - 108px - 200px);
+  padding: clamp(16px, 4vh, 56px) var(--pad) 64px;
+}
+.eyebrow {
+  margin: 0 0 20px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+h1 {
+  margin: 0 0 24px;
+  font: 600 clamp(40px, 6vw, 84px)/1.02 var(--display);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.lede {
+  margin: 0;
+  max-width: 40ch;
+  font-size: clamp(17px, 1.5vw, 20px);
+  color: var(--muted);
+  text-wrap: pretty;
+}
+.hero-art {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+}
+
+.highlights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(24px, 4vw, 56px);
+  padding: 48px var(--pad) 64px;
+  border-top: 1px solid var(--rule);
+}
+.highlights h2 {
+  margin: 0 0 8px;
+  font: 600 19px/1.3 var(--display);
+}
+.highlights p {
+  margin: 0;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px 24px;
+  padding: 24px var(--pad) 32px;
+  border-top: 1px solid var(--rule);
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* The dock strip blends into each site. */
+unfold-nav {
+  --unfold-dock-bg: color-mix(in srgb, var(--bg) 84%, transparent);
+  --unfold-dock-border: var(--rule);
+}
+
+/* Top positions: the header is the button's home. It stays put and keeps the button's spot free. */
+:is(.pos-top-left, .pos-top, .pos-top-right) .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+.pos-top-left .site-header {
+  padding-left: calc(104px + env(safe-area-inset-left, 0px));
+}
+.pos-top-right .site-header {
+  padding-right: calc(104px + env(safe-area-inset-right, 0px));
+}
+.pos-top .site-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px minmax(0, 1fr);
+}
+.pos-top .site-header .brand {
+  grid-column: 1;
+}
+.pos-top .site-header .meta {
+  grid-column: 3;
+  justify-self: end;
+  margin: 0;
+}
+.pos-top .site-header .nav-slot {
+  display: none;
+}
+
+/* Centre: the hero leaves a gutter where the button floats. */
+@media (min-width: 761px) {
+  .pos-center .hero {
+    grid-template-columns: minmax(0, 1fr) 150px minmax(0, 1fr);
+  }
+  .pos-center .hero-art {
+    grid-column: 3;
+  }
+  .pos-center h1 {
+    font-size: clamp(34px, 4.4vw, 64px);
+  }
+}
+@media (max-width: 760px) {
+  .pos-center .hero {
+    padding-top: calc(50svh - 96px + 52px);
+  }
+}
+@media (max-width: 760px) {
+  .site-header {
+    min-height: 96px;
+  }
+  .hero {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    padding-bottom: 40px;
+  }
+  .hero-art {
+    justify-items: start;
+  }
+  .highlights {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .meta {
+    display: none;
+  }
+}
+
+/* Subpages: the art becomes the page's icon, large. */
+.page-icon svg {
+  width: clamp(120px, 18vw, 220px);
+  height: auto;
+  color: var(--accent);
+  stroke-width: 1;
+  opacity: 0.9;
+}
+
+/* A gentle pulse on the button until someone opens it. */
+@keyframes unfold-hint {
+  0% {
+    outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent);
+    outline-offset: 2px;
+  }
+  70%,
+  100% {
+    outline: 2px solid transparent;
+    outline-offset: 18px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not(.has-opened) unfold-nav::part(trigger) {
+    animation: unfold-hint 2.2s ease-out infinite;
+  }
+}
+
+/* -------------------------------------------------------------- restaurant */
+
+.site--restaurant {
+  --bg: #f6efe2;
+  --fg: #2b2118;
+  --muted: #6f5f4e;
+  --accent: #b5532d;
+  --rule: rgb(43 33 24 / 0.18);
+  --display: 'Fraunces', Georgia, serif;
+}
+.site--restaurant h1 {
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: -0.025em;
+}
+.site--restaurant .brand {
+  font-weight: 600;
+  font-style: italic;
+  font-size: 24px;
+}
+.menu-art {
+  width: min(100%, 440px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: 400 italic 20px/1.3 var(--display);
+}
+.menu-art li {
+  display: flex;
+  align-items: baseline;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.menu-art i {
+  flex: 1;
+  margin: 0 10px;
+  border-bottom: 1.5px dotted rgb(43 33 24 / 0.35);
+  translate: 0 -4px;
+}
+.menu-art b {
+  font: 600 normal 18px/1 var(--display);
+  color: var(--accent);
+}
+
+/* ----------------------------------------------------------------- fashion */
+
+.site--fashion {
+  --bg: #ffffff;
+  --fg: #0a0a0a;
+  --muted: #6b6b6b;
+  --accent: #0a0a0a;
+  --rule: rgb(0 0 0 / 0.12);
+  --display: 'Bodoni Moda', Didot, serif;
+}
+.site--fashion .brand {
+  font:
+    600 19px/1 'Inter',
+    sans-serif;
+  letter-spacing: 0.32em;
+}
+.site--fashion .brand svg {
+  display: none;
+}
+.site--fashion h1 {
+  font-weight: 500;
+  font-size: clamp(42px, 6.4vw, 92px);
+  letter-spacing: -0.03em;
+}
+.site--fashion .eyebrow {
+  font-family: 'Inter', sans-serif;
+  letter-spacing: 0.3em;
+}
+.looks {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  width: 100%;
+}
+.looks figure {
+  margin: 0;
+}
+.looks span {
+  display: block;
+  aspect-ratio: 3 / 4.6;
+  background:
+    radial-gradient(ellipse 22% 9% at 50% 18%, rgb(0 0 0 / 0.55), transparent 70%),
+    radial-gradient(ellipse 34% 46% at 50% 64%, rgb(0 0 0 / 0.62), transparent 72%),
+    linear-gradient(180deg, #ededed, #cfcfcf);
+}
+.looks figure:nth-child(2) span {
+  background-color: #ddd;
+  filter: contrast(1.2) brightness(0.92);
+}
+.looks figure:nth-child(3) span {
+  filter: invert(1) brightness(0.9);
+}
+.looks figcaption {
+  margin-top: 10px;
+  font:
+    600 11px/1 'Inter',
+    sans-serif;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+/* -------------------------------------------------------------------- saas */
+
+.site--saas {
+  --bg: #07081a;
+  --fg: #e8ecff;
+  --muted: rgb(232 236 255 / 0.62);
+  --accent: #a78bfa;
+  --display: 'Space Grotesk', system-ui, sans-serif;
+}
+.site--saas body {
+  background:
+    radial-gradient(60% 50% at 70% 0%, rgb(139 92 246 / 0.28), transparent 70%),
+    radial-gradient(40% 40% at 10% 90%, rgb(34 211 238 / 0.12), transparent 70%),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.035) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 0.035) 0 1px, transparent 1px 64px), var(--bg);
+}
+.site--saas h1 {
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+.metrics {
+  display: grid;
+  gap: 28px;
+  margin: 0;
+  width: min(100%, 380px);
+}
+.metrics div {
+  padding-left: 20px;
+  border-left: 2px solid rgb(167 139 250 / 0.5);
+}
+.metrics dt {
+  font-size: 13px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+.metrics dd {
+  margin: 4px 0 0;
+  font: 700 clamp(36px, 4vw, 54px)/1 var(--display);
+  letter-spacing: -0.03em;
+  background: linear-gradient(90deg, #c4b5fd, #67e8f9);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ------------------------------------------------------------------ health */
+
+.site--health {
+  --bg: #f1f8f6;
+  --fg: #173130;
+  --muted: #4b6866;
+  --accent: #0f8b8d;
+  --rule: rgb(23 49 48 / 0.12);
+  --display: 'Atkinson Hyperlegible', system-ui, sans-serif;
+  --body: 'Atkinson Hyperlegible', system-ui, sans-serif;
+}
+.site--health body {
+  font-size: 18px;
+}
+.site--health h1 {
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+.next-slot {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding: 48px 8px;
+  isolation: isolate;
+}
+.next-slot::before {
+  content: '';
+  position: absolute;
+  inset: -20% -30%;
+  z-index: -1;
+  background:
+    radial-gradient(closest-side, rgb(15 139 141 / 0.2), transparent),
+    radial-gradient(40% 40% at 80% 20%, rgb(255 205 178 / 0.55), transparent);
+  filter: blur(8px);
+}
+.next-slot span {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.next-slot strong {
+  font-size: clamp(34px, 4vw, 52px);
+  line-height: 1.05;
+}
+.next-slot em {
+  font-style: normal;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------- real estate */
+
+.site--realestate {
+  --bg: #0b1424;
+  --fg: #f3e9d2;
+  --muted: rgb(243 233 210 / 0.66);
+  --accent: #c8a96a;
+  --display: 'Cormorant Garamond', Georgia, serif;
+}
+.site--realestate h1 {
+  font-weight: 500;
+  font-size: clamp(46px, 6.6vw, 96px);
+  letter-spacing: -0.01em;
+  line-height: 0.98;
+}
+.site--realestate .brand {
+  font-weight: 600;
+  font-size: 26px;
+  letter-spacing: 0.02em;
+}
+.site--realestate .eyebrow {
+  letter-spacing: 0.3em;
+}
+.arch {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 6px;
+  width: min(100%, 340px);
+  aspect-ratio: 3 / 4;
+  padding: 28px;
+  border: 1px solid rgb(200 169 106 / 0.7);
+  border-radius: 999px 999px 0 0;
+  background:
+    repeating-linear-gradient(90deg, rgb(200 169 106 / 0.07) 0 1px, transparent 1px 22px),
+    linear-gradient(180deg, #13223a, #0b1424 70%);
+}
+.arch span {
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.arch strong {
+  font: 500 34px/1 var(--display);
+}
+.arch em {
+  font-style: normal;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* -------------------------------------------------------------------- docs */
+
+.site--docs {
+  --bg: #050a07;
+  --fg: #d6f5df;
+  --muted: rgb(214 245 223 / 0.6);
+  --accent: #39ff88;
+  --display: 'JetBrains Mono', ui-monospace, monospace;
+}
+.site--docs h1 {
+  font-weight: 700;
+  font-size: clamp(32px, 4.4vw, 58px);
+  letter-spacing: -0.04em;
+  line-height: 1.08;
+}
+.site--docs .eyebrow::before {
+  content: '// ';
+}
+.term {
+  width: min(100%, 440px);
+  margin: 0;
+  padding: 22px 24px;
+  border: 1px solid rgb(57 255 136 / 0.25);
+  border-radius: 8px;
+  background: #07110b;
+  font: 500 14px/1.9 var(--display);
+  white-space: pre-wrap;
+}
+.term span {
+  color: var(--accent);
+}
+.term i {
+  font-style: normal;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------------ agency */
+
+.site--agency {
+  --bg: #ffffff;
+  --fg: #0a0a0a;
+  --muted: #3d3d3d;
+  --accent: #0a0a0a;
+  --rule: #0a0a0a;
+  --display: 'Archivo Black', Impact, sans-serif;
+}
+.site--agency .eyebrow {
+  color: #0a0a0a;
+  background: #ffd60a;
+  display: inline-block;
+  padding: 4px 8px;
+}
+.site--agency h1 {
+  font-weight: 400;
+  font-size: clamp(44px, 6.8vw, 104px);
+  line-height: 0.92;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+}
+.site--agency .brand svg {
+  color: #0a0a0a;
+}
+.site--agency .highlights {
+  border-top-width: 3px;
+}
+.sticker {
+  padding: 18px 22px;
+  border: 3px solid #0a0a0a;
+  background: #ffd60a;
+  box-shadow: 6px 6px 0 #0a0a0a;
+  font: 400 22px/1.1 var(--display);
+  text-transform: uppercase;
+  rotate: -6deg;
+}
+
+/* ----------------------------------------------------------------- finance */
+
+.site--finance {
+  --bg: #f5f7fb;
+  --fg: #0e1726;
+  --muted: #5b6578;
+  --accent: #1f6feb;
+  --rule: rgb(14 23 38 / 0.1);
+  --display: 'Manrope', system-ui, sans-serif;
+  --body: 'Manrope', system-ui, sans-serif;
+}
+.site--finance h1 {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+}
+.site--finance .eyebrow {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 16px;
+  color: var(--muted);
+  font-weight: 500;
+}
+.site--finance .highlights h2 {
+  font-size: 15px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.site--finance .highlights p {
+  font-size: 22px;
+  color: var(--fg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.spark {
+  width: 100%;
+  height: 140px;
+  overflow: visible;
+}
+.spark path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+/* ------------------------------------------------------------------ travel */
+
+.site--travel {
+  --bg: #fdf3ea;
+  --fg: #2d2a32;
+  --muted: #5f5762;
+  --accent: #c8553d;
+  --rule: rgb(45 42 50 / 0.12);
+  --display: 'DM Serif Display', Georgia, serif;
+}
+.site--travel body {
+  background:
+    linear-gradient(180deg, #fde4cf 0%, #fbd2bd 38%, #f6efe6 70%) no-repeat,
+    var(--bg);
+}
+.site--travel h1 {
+  font-weight: 400;
+  letter-spacing: -0.015em;
+}
+.site--travel .site-header {
+  justify-content: space-between;
+}
+.site--travel .meta {
+  margin-left: 0;
+  order: 3;
+}
+.sunset {
+  position: relative;
+  width: min(100%, 380px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f9c784 0%, #f4a261 45%, #e07a5f 62%);
+}
+.sunset .sun {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  width: 34%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  translate: -50% 0;
+  background: #fff4d6;
+  box-shadow: 0 0 60px 20px rgb(255 244 214 / 0.55);
+}
+.sunset .sea {
+  position: absolute;
+  inset: 58% 0 0;
+  background: repeating-linear-gradient(180deg, #3d7a8c 0 7px, #5d9aa8 7px 12px);
+}
