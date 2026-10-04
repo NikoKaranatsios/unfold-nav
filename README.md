@@ -407,7 +407,7 @@ pnpm build        # dist/unfold-nav.js (ESM), dist/unfold-nav.umd.cjs, type defi
 
 Browser target: modern evergreen browsers with Custom Elements, Shadow DOM, `<dialog>` and modern CSS (`color-mix`, individual transforms). Chrome has been checked interactively; test Safari, Firefox and assistive technology in your target environments before rollout. The Popover API puts drag navigation in the top layer; browsers without it use a non-modal dialog. IE and legacy browsers are not supported.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and reproducible bug reports. GitHub Actions runs the checks and showcase build on Node 22 and 24.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and reproducible bug reports. GitHub Actions runs the checks and showcase build on Node 22 and 24, and smoke-tests the static showcase container.
 
 A note on SEO: the graph only exists while it is open, so keep a plain list of links somewhere (a footer or a sitemap) for crawlers and no-JS visitors.
 

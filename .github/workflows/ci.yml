@@ -23,3 +23,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
       - run: pnpm build:showcase
+  showcase-container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - run: docker compose up --build --wait --wait-timeout 90
+      - run: docker compose exec -T showcase wget -q --spider http://127.0.0.1:8080/
+      - run: docker compose exec -T showcase wget -q --spider http://127.0.0.1:8080/site.html
+      - if: always()
+        run: docker compose down
