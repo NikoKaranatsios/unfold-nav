@@ -465,7 +465,9 @@ describe('edges and hit testing', () => {
       }
     }
     expect(problems).toEqual([]);
-  });
+    // This sweeps every branch of all nine trees in both viewports and every position.
+    // Allow slower CI runners to finish; the per-unfold performance check remains separate.
+  }, 20_000);
 
   it('picks the nearest node within reach', () => {
     const nodes = [
