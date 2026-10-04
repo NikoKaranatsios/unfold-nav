@@ -1,5 +1,7 @@
 # unfold-nav
 
+**[Live demo](https://unfold-nav.romagnolo.eu)**
+
 One button for your whole site map. Press and hold it, and your pages unfold around it as a small graph.
 Drag along the graph and release on a page to go there. Or tap the button and tap your way through. The
 same component works with a mouse, a finger or a keyboard, on desktop and on phones.
@@ -11,7 +13,7 @@ same component works with a mouse, a finger or a keyboard, on desktop and on pho
 - **Customisable:** options, `--unfold-*` CSS variables, `::part()` selectors, a slot for the button icon, per-page colours, and a hook to plug in any icon library.
 - **Accessibility features:** a modal dialog with a standard tree of pages for screen readers, full keyboard support, focus management, high-contrast and forced-colors support, text that follows the reader's font size, and reduced motion. See [Accessibility](#accessibility).
 
-Version 0.1.0 is an initial release for compact site maps. The API may change before 1.0.
+This is an early release for compact site maps. The API may change before 1.0.
 
 ## Quick start
 
@@ -370,7 +372,7 @@ pnpm build:showcase      # static site in showcase-dist/ (relative paths, host i
 pnpm preview:showcase    # serve that build locally
 ```
 
-For container hosting and the Romagnolo deployment workflow, see [Showcase deployment](deploy/README.md).
+For container hosting and the Romagnolo deployment workflow, see [Showcase deployment](https://github.com/NikoKaranatsios/unfold-nav/blob/main/deploy/README.md).
 
 ## How the layout works
 
@@ -407,7 +409,7 @@ pnpm build        # dist/unfold-nav.js (ESM), dist/unfold-nav.umd.cjs, type defi
 
 Browser target: modern evergreen browsers with Custom Elements, Shadow DOM, `<dialog>` and modern CSS (`color-mix`, individual transforms). Chrome has been checked interactively; test Safari, Firefox and assistive technology in your target environments before rollout. The Popover API puts drag navigation in the top layer; browsers without it use a non-modal dialog. IE and legacy browsers are not supported.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and reproducible bug reports. GitHub Actions runs the checks and showcase build on Node 22 and 24, and smoke-tests the static showcase container.
+See [CONTRIBUTING.md](https://github.com/NikoKaranatsios/unfold-nav/blob/main/CONTRIBUTING.md) for the development workflow and reproducible bug reports. GitHub Actions runs the checks and showcase build on Node 22 and 24, and smoke-tests the static showcase container.
 
 A note on SEO: the graph only exists while it is open, so keep a plain list of links somewhere (a footer or a sitemap) for crawlers and no-JS visitors.
 

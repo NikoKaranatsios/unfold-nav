@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+- Link the npm homepage and README to the [live showcase](https://unfold-nav.romagnolo.eu).
+- Document container deployment and check the static showcase container in CI.
+- Allow the exhaustive Circuit regression sweep to finish on slower CI runners.
+
 ## 0.1.0
 
 Initial release of the dependency-free `<unfold-nav>` Web Component.
