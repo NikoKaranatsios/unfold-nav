@@ -11,6 +11,9 @@ RUN pnpm build:showcase
 
 FROM caddy:2-alpine
 
+# The upstream binary carries a privileged-port capability. Remove it because
+# this image serves port 8080 with all Linux capabilities dropped.
+RUN setcap -r /usr/bin/caddy
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/showcase-dist /srv
 USER 1000:1000
