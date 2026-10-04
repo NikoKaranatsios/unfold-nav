@@ -16,6 +16,7 @@ FROM caddy:2-alpine
 RUN setcap -r /usr/bin/caddy
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/showcase-dist /srv
+ENV XDG_DATA_HOME=/tmp/caddy-data
 USER 1000:1000
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
