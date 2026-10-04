@@ -352,6 +352,8 @@ Those two properties drive the unfold animation.
 
 ## Showcase: 9 industries × 9 designs
 
+[Try the live demo](https://unfold-nav.romagnolo.eu).
+
 `pnpm dev` opens a showcase with a desktop and a phone frame side by side, running the same mock website. Pick:
 
 - **an industry:** restaurant, fashion, SaaS, healthcare, real estate, developer docs, creative agency, banking, travel. Each is a fictional brand with its own site map, typography and artwork.
@@ -367,6 +369,8 @@ on its own, which is handy on a real phone.
 pnpm build:showcase      # static site in showcase-dist/ (relative paths, host it anywhere)
 pnpm preview:showcase    # serve that build locally
 ```
+
+For container hosting and the Romagnolo deployment workflow, see [Showcase deployment](deploy/README.md).
 
 ## How the layout works
 

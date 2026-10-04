@@ -1,0 +1,13 @@
+**
+!package.json
+!pnpm-lock.yaml
+!index.html
+!site.html
+!vite.config.ts
+!tsconfig.json
+!src/
+!src/**
+!demo/
+!demo/**
+!deploy/
+!deploy/Caddyfile
