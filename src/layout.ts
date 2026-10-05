@@ -2,11 +2,11 @@
  * Pure geometry: where nodes go, where their labels go, and how edges are drawn.
  * Coordinates are viewport pixels (y grows downwards, angles are clockwise from +x).
  *
- * The guarantee this file is built around: nothing overlaps. Every node reserves room for its label at
+ * The layout prefers clearance: every node reserves room for its label at
  * the moment its fan is placed, a fan is only accepted when all of its nodes *and* labels fit clear of
  * everything already on screen (nodes, labels, edges, the viewport edge), and later fans have to keep
  * clear of what's reserved. When that's impossible (a tiny screen, a huge menu) labels that don't fit
- * are left out rather than drawn on top of something.
+ * are left out. Extreme density can also exhaust node clearance; see the documented layout limits.
  */
 
 export interface Vec {
@@ -699,7 +699,7 @@ export function layoutGraph(g: GraphInput, cache = new Map<string, Fan>()): Map<
   const r = g.nodeRadius;
   const obstacles: Circle[] = [g.hub];
   const edges: Vec[][] = [];
-  const reserved: { id: string; rect: Rect }[] = [];
+  const reserved: { id: string; rect: Rect; open?: boolean }[] = [];
   const released = new Set<string>();
   const center = { x: g.bounds.x + g.bounds.w / 2, y: g.bounds.y + g.bounds.h / 2 };
 
@@ -723,7 +723,7 @@ export function layoutGraph(g: GraphInput, cache = new Map<string, Fan>()): Map<
         gap: g.gap,
         bounds: g.bounds,
         obstacles: obstacles.filter((o) => o.x !== origin.x || o.y !== origin.y),
-        blocked: reserved.filter((x) => !released.has(x.id)).map((x) => x.rect),
+        blocked: reserved.filter((x) => x.open || !released.has(x.id)).map((x) => x.rect),
         edges,
         edgeStyle: style,
         labels: level.childIds.map((id) => g.labelSize?.(id) ?? null),
@@ -740,19 +740,18 @@ export function layoutGraph(g: GraphInput, cache = new Map<string, Fan>()): Map<
     if (parent) {
       parent.pathLabel = fan.originLabel ?? null;
       // Deeper levels keep clear of it (it's never released).
-      if (parent.pathLabel) reserved.push({ id: `${level.parentId}\u0000open`, rect: parent.pathLabel });
+      if (parent.pathLabel) reserved.push({ id: level.parentId!, rect: parent.pathLabel, open: true });
     }
 
     // A fan that only fit as a last resort may cover reserved labels: drop those labels, never overlap.
     const pad = g.labelPad ?? 8;
     for (const res of reserved) {
-      if (released.has(res.id)) continue;
+      if (!res.open && released.has(res.id)) continue;
       const covered = fan.points.some((p) => distToRect(p, res.rect) < r + pad - 0.5);
       if (!covered) continue;
-      const [id, open] = res.id.split('\u0000');
-      const owner = placed.get(id);
+      const owner = placed.get(res.id);
       if (!owner) continue;
-      if (open) owner.pathLabel = null;
+      if (res.open) owner.pathLabel = null;
       else owner.label = null;
     }
 

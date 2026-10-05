@@ -319,6 +319,31 @@ describe('layoutGraph', () => {
     expect([...placed.values()].every((p) => p.label === null)).toBe(true);
   });
 
+  it('drops covered branch captions for IDs containing null characters', () => {
+    const id = 'group\u0000name';
+    const cache = new Map<string, Fan>([
+      ['', { points: [{ x: 100, y: 100 }], labels: [null] }],
+      ['branch', { points: [{ x: 200, y: 100 }], labels: [null], originLabel: { x: 240, y: 100, w: 40, h: 20 } }],
+      ['child', { points: [{ x: 250, y: 110 }], labels: [null] }],
+    ]);
+    const placed = layoutGraph(
+      {
+        hub: { x: 50, y: 50, r: 30 },
+        bounds: { x: 0, y: 0, w: 800, h: 500 },
+        nodeRadius: NODE_R,
+        distance: SPACING,
+        gap: GAP,
+        levels: [
+          { key: '', parentId: null, childIds: [id] },
+          { key: 'branch', parentId: id, childIds: ['child'] },
+          { key: 'child', parentId: 'child', childIds: ['leaf'] },
+        ],
+      },
+      cache,
+    );
+    expect(placed.get(id)!.pathLabel).toBeNull();
+  });
+
   it('is fast enough to run on every unfold', () => {
     const { w, h } = VIEWPORTS.phone;
     const t = performance.now();

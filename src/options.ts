@@ -87,6 +87,7 @@ export function normalizeOptions(current: UnfoldNavOptions, patch: Partial<Unfol
   if (!offsets.length || offsets.some((v) => typeof v !== 'number' || !Number.isFinite(v) || v < 0)) {
     throw new RangeError('[unfold-nav] offset must be a non-negative number or { x, y }.');
   }
+  if (typeof off === 'object') next.offset = { x: off.x, y: off.y };
   for (const key of ['openOnTap', 'backdrop', 'haptics'] as const) {
     if (typeof next[key] !== 'boolean') throw new TypeError(`[unfold-nav] ${key} must be a boolean.`);
   }

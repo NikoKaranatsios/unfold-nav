@@ -10,6 +10,20 @@ const ICON_NAME = /^[a-z][\w-]{2,}$/i;
  * monogram). Markup strings are inserted as-is, so only pass markup you trust.
  */
 export function renderIcon(src: IconSource | undefined, resolve: IconResolver, page?: NavPage, depth = 0): Node | null {
+  try {
+    return buildIcon(src, resolve, page, depth);
+  } catch (error) {
+    console.warn('[unfold-nav] Could not render icon:', error);
+    return null;
+  }
+}
+
+function buildIcon(
+  src: IconSource | undefined,
+  resolve: IconResolver,
+  page: NavPage | undefined,
+  depth: number,
+): Node | null {
   if (src == null || src === '' || depth > 3) return null;
   if (typeof src === 'function') return renderIcon(src(), resolve, page, depth + 1);
   if (typeof src !== 'string') return src.cloneNode(true);

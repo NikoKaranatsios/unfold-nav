@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createUnfoldNav, define, UnfoldNav } from '../src/index.js';
+import * as geometry from '../src/layout.js';
 import type { NavPage, UnfoldNavOptions } from '../src/types.js';
 
 const pages: NavPage[] = [
@@ -9,7 +10,7 @@ const pages: NavPage[] = [
   { id: 'disabled', label: 'Coming soon', href: '/soon', disabled: true },
 ];
 const node = (nav: UnfoldNav, id: string) =>
-  nav.shadowRoot!.querySelector<HTMLButtonElement>(`.node[data-id="${id}"]`)!;
+  [...nav.shadowRoot!.querySelectorAll<HTMLButtonElement>('.node')].find((el) => el.dataset.id === id)!;
 const key = (element: Element, value: string) =>
   element.dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true, composed: true }));
 const make = (options: Partial<UnfoldNavOptions> = {}) =>
@@ -159,5 +160,245 @@ describe('public element API', () => {
     expect(style.getPropertyValue('--unfold-inset-top')).toContain('80px');
     first.remove();
     expect(style.getPropertyValue('--unfold-inset-top')).toBe('');
+  });
+
+  it('updates current-page and ancestor markers while the menu is open', () => {
+    const nav = make({ current: '/' });
+    nav.open();
+    expect(node(nav, 'home').getAttribute('aria-current')).toBe('page');
+    nav.current = '/docs/install';
+    expect(node(nav, 'home').hasAttribute('aria-current')).toBe(false);
+    expect(node(nav, 'docs').hasAttribute('data-current-trail')).toBe(true);
+    key(node(nav, 'docs'), 'ArrowRight');
+    expect(node(nav, 'install').getAttribute('aria-current')).toBe('page');
+    nav.current = null;
+    expect(nav.shadowRoot!.querySelector('[aria-current]')).toBeNull();
+    expect(nav.shadowRoot!.querySelector('[data-current-trail]')).toBeNull();
+  });
+
+  it('uses the document base URL for relative current-page links', () => {
+    const base = document.createElement('base');
+    base.href = 'https://example.com/docs/';
+    document.head.append(base);
+    try {
+      const nav = make({ pages: [{ id: 'guide', label: 'Guide', href: 'guide' }], current: 'guide' });
+      nav.open();
+      expect(node(nav, 'guide').getAttribute('aria-current')).toBe('page');
+    } finally {
+      base.remove();
+    }
+  });
+
+  it('cycles repeated typeahead letters and resets the search when reopened', () => {
+    const nav = make({
+      pages: [
+        { id: 'home', label: 'Home' },
+        { id: 'help', label: 'Help' },
+      ],
+    });
+    nav.open({ focus: true });
+    key(node(nav, 'home'), 'h');
+    expect(nav.shadowRoot!.activeElement).toBe(node(nav, 'help'));
+    key(node(nav, 'help'), 'h');
+    expect(nav.shadowRoot!.activeElement).toBe(node(nav, 'home'));
+    nav.close();
+    nav.open({ focus: true });
+    key(node(nav, 'home'), 'h');
+    key(node(nav, 'help'), 'e');
+    expect(nav.shadowRoot!.activeElement).toBe(node(nav, 'help'));
+  });
+
+  it('reuses graph geometry and SVG paths across repeated focus and hover changes', () => {
+    const layout = vi.spyOn(geometry, 'layoutGraph');
+    const nav = make();
+    vi.advanceTimersByTime(20);
+    nav.open({ focus: true });
+    const positions = [...nav.shadowRoot!.querySelectorAll<HTMLElement>('.node')].map((el) => el.style.translate);
+    const edges = [...nav.shadowRoot!.querySelectorAll('.edge')].map((el) => vi.spyOn(el, 'setAttribute'));
+    for (let i = 0; i < 50; i++) {
+      key(node(nav, 'home'), 'ArrowDown');
+      key(node(nav, 'docs'), 'ArrowUp');
+    }
+    const overlay = nav.shadowRoot!.querySelector('.overlay')!;
+    for (const id of ['home', 'docs', 'home']) {
+      const [x, y] = node(nav, id).style.translate.split(' ').map(parseFloat);
+      overlay.dispatchEvent(new PointerEvent('pointermove', { pointerType: 'mouse', clientX: x, clientY: y }));
+    }
+    expect(layout).toHaveBeenCalledTimes(1);
+    expect(edges.every((spy) => spy.mock.calls.every(([name]) => name !== 'd'))).toBe(true);
+    expect([...nav.shadowRoot!.querySelectorAll<HTMLElement>('.node')].map((el) => el.style.translate)).toEqual(
+      positions,
+    );
+    key(node(nav, 'docs'), 'ArrowRight');
+    expect(layout).toHaveBeenCalledTimes(2);
+    nav.spacing = 120;
+    expect(layout).toHaveBeenCalledTimes(3);
+  });
+
+  it('coalesces resize events and refreshes geometry on the next frame', () => {
+    const layout = vi.spyOn(geometry, 'layoutGraph');
+    const nav = make();
+    vi.advanceTimersByTime(20);
+    nav.open();
+    layout.mockClear();
+    for (let i = 0; i < 20; i++) window.dispatchEvent(new Event('resize'));
+    expect(layout).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(20);
+    expect(layout).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes inline geometry when an ancestor scrolls and removes the listener on disconnect', () => {
+    const layout = vi.spyOn(geometry, 'layoutGraph');
+    const nav = make({ position: 'inline' });
+    vi.advanceTimersByTime(20);
+    nav.open();
+    layout.mockClear();
+    document.body.dispatchEvent(new Event('scroll'));
+    vi.advanceTimersByTime(20);
+    expect(layout).toHaveBeenCalledTimes(1);
+    nav.remove();
+    layout.mockClear();
+    document.body.dispatchEvent(new Event('scroll'));
+    vi.advanceTimersByTime(20);
+    expect(layout).not.toHaveBeenCalled();
+  });
+
+  it('does not expose leaving children to assistive technology and revives them on rapid reopen', () => {
+    const nav = make();
+    nav.open({ focus: true });
+    key(node(nav, 'docs'), 'ArrowRight');
+    const install = node(nav, 'install');
+    install.focus();
+    key(install, 'Backspace');
+    expect(install.inert).toBe(true);
+    expect(install.getAttribute('aria-hidden')).toBe('true');
+    expect(nav.shadowRoot!.activeElement).toBe(node(nav, 'docs'));
+    key(node(nav, 'docs'), 'ArrowRight');
+    expect(node(nav, 'install')).toBe(install);
+    expect(install.inert).toBe(false);
+    expect(install.hasAttribute('aria-hidden')).toBe(false);
+    expect(install.style.getPropertyValue('--_delay')).toBe('');
+    vi.advanceTimersByTime(1000);
+    expect(install.isConnected).toBe(true);
+    nav.close();
+    nav.open();
+    vi.advanceTimersByTime(1000);
+    expect(nav.isOpen).toBe(true);
+    expect(node(nav, 'home').inert).toBe(false);
+  });
+
+  it('keeps a page named hub selectable with a pointer', () => {
+    const navigate = vi.fn();
+    const nav = make({ pages: [{ id: 'hub', label: 'Hub', href: '/hub' }], navigate });
+    nav.open();
+    const [x, y] = node(nav, 'hub').style.translate.split(' ').map(parseFloat);
+    const overlay = nav.shadowRoot!.querySelector('.overlay')!;
+    overlay.dispatchEvent(new MouseEvent('click', { clientX: x, clientY: y, detail: 1, bubbles: true }));
+    expect(navigate).toHaveBeenCalledWith(expect.objectContaining({ id: 'hub' }), expect.anything());
+  });
+
+  it('keeps expansion caches separate for IDs containing separator characters', () => {
+    const unusual: NavPage[] = [
+      { id: 'a\u001fb', label: 'First group', children: [{ id: 'first', label: 'First child' }] },
+      {
+        id: 'a',
+        label: 'Second group',
+        children: [{ id: 'b', label: 'Inner group', children: [{ id: 'last', label: 'Last child' }] }],
+      },
+    ];
+    const warm = make({ pages: unusual });
+    warm.open();
+    key(node(warm, 'a\u001fb'), 'ArrowRight');
+    key(node(warm, 'a'), 'ArrowRight');
+    key(node(warm, 'b'), 'ArrowRight');
+    const fresh = make({ pages: unusual });
+    fresh.open();
+    key(node(fresh, 'a'), 'ArrowRight');
+    key(node(fresh, 'b'), 'ArrowRight');
+    expect(node(warm, 'last').style.translate).toBe(node(fresh, 'last').style.translate);
+  });
+
+  it('accepts immediate assistive activation and a fast second pointer gesture after opening', () => {
+    const navigate = vi.fn();
+    const nav = make({ navigate });
+    nav.open();
+    node(nav, 'home').click();
+    expect(navigate).toHaveBeenCalledTimes(1);
+    nav.close();
+    const trigger = nav.shadowRoot!.querySelector('.trigger')!;
+    trigger.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 3, isPrimary: true, pointerType: 'mouse' }));
+    trigger.dispatchEvent(new PointerEvent('pointerup', { pointerId: 3, isPrimary: true, pointerType: 'mouse' }));
+    const overlay = nav.shadowRoot!.querySelector('.overlay')!;
+    overlay.dispatchEvent(new MouseEvent('click', { detail: 1, bubbles: true }));
+    expect(nav.isOpen).toBe(true);
+    node(nav, 'home').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    node(nav, 'home').dispatchEvent(new MouseEvent('click', { detail: 1, bubbles: true }));
+    expect(navigate).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not repeat group activation or select while input composition is active', () => {
+    const nav = make();
+    nav.open({ focus: true });
+    key(node(nav, 'docs'), 'Enter');
+    expect(node(nav, 'docs').getAttribute('aria-expanded')).toBe('true');
+    node(nav, 'docs').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true }));
+    expect(node(nav, 'docs').getAttribute('aria-expanded')).toBe('true');
+    node(nav, 'home').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true }));
+    expect(nav.isOpen).toBe(true);
+  });
+
+  it('respects an open listener that closes or disconnects before focus is moved', () => {
+    const nav = make();
+    nav.addEventListener('unfold-open', () => nav.close({ focusTrigger: true }), { once: true });
+    nav.open({ focus: true });
+    expect(nav.isOpen).toBe(false);
+    expect(nav.shadowRoot!.activeElement).toBe(nav.shadowRoot!.querySelector('.trigger'));
+    nav.addEventListener('unfold-open', () => nav.remove(), { once: true });
+    nav.open({ focus: true });
+    expect(nav.isOpen).toBe(false);
+    expect(nav.shadowRoot!.querySelectorAll('.node')).toHaveLength(0);
+  });
+
+  it('falls back from broken icon callbacks and applies resolver updates to visible pages', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const nav = make({
+      pages: [{ id: 'home', label: 'Home', icon: 'house' }],
+      iconResolver: () => {
+        throw new Error('Icon library unavailable');
+      },
+      triggerIcon: () => {
+        throw new Error('Trigger unavailable');
+      },
+    });
+    nav.open();
+    expect(node(nav, 'home').querySelector('.mono')?.textContent).toBe('H');
+    expect(warn).toHaveBeenCalled();
+    nav.iconResolver = () => '★';
+    expect(node(nav, 'home').querySelector('.glyph')?.textContent).toBe('★');
+    expect(nav.isOpen).toBe(true);
+  });
+
+  it('clears active label parts when labels are disabled while the menu is open', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('overlay') ? new DOMRect(0, 0, 1024, 768) : new DOMRect(482, 354, 60, 60);
+    });
+    const nav = make({ labels: 'auto' });
+    nav.open({ focus: true });
+    expect(nav.shadowRoot!.querySelector('[part~="label-active"]')).not.toBeNull();
+    nav.labels = 'none';
+    expect(nav.shadowRoot!.querySelector('[part~="label-active"]')).toBeNull();
+    expect(nav.shadowRoot!.querySelector('.label[data-visible]')).toBeNull();
+  });
+
+  it('releases animation, dwell and resize timers after interrupted navigation disconnects', () => {
+    const baseline = vi.getTimerCount();
+    const nav = make();
+    nav.open({ focus: true });
+    key(node(nav, 'docs'), 'ArrowRight');
+    nav.close();
+    nav.open();
+    window.dispatchEvent(new Event('resize'));
+    nav.remove();
+    expect(vi.getTimerCount()).toBe(baseline);
   });
 });

@@ -28,6 +28,12 @@ describe('configuration validation', () => {
     );
     expect(Object.getPrototypeOf(options)).toBe(Object.prototype);
   });
+  it('owns a copy of validated offsets so later caller mutations cannot corrupt them', () => {
+    const offset = { x: 12, y: 24 };
+    const options = normalizeOptions(DEFAULT_OPTIONS, { offset });
+    offset.x = NaN;
+    expect(options.offset).toEqual({ x: 12, y: 24 });
+  });
 });
 
 describe('default navigation URLs', () => {

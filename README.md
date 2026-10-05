@@ -13,7 +13,8 @@ same component works with a mouse, a finger or a keyboard, on desktop and on pho
 - **Customisable:** options, `--unfold-*` CSS variables, `::part()` selectors, a slot for the button icon, per-page colours, and a hook to plug in any icon library.
 - **Accessibility features:** a modal dialog with a standard tree of pages for screen readers, full keyboard support, focus management, high-contrast and forced-colors support, text that follows the reader's font size, and reduced motion. See [Accessibility](#accessibility).
 
-This is an early release for compact site maps. The API may change before 1.0.
+Version 1.x keeps the public options, events and styling API stable. It is designed for compact site maps;
+see [layout limits](#layout-limits) and test your real menu content.
 
 ## Quick start
 

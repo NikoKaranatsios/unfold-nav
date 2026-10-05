@@ -211,6 +211,7 @@ export const STYLES: string = `
   touch-action: none;
 }
 .overlay:not([data-state]) { display: none; }
+.overlay[data-state="closing"], .overlay[data-state="closing"] * { pointer-events: none; }
 .overlay::backdrop { background: transparent; }
 .overlay:focus { outline: none; }
 

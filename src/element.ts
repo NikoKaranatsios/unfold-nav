@@ -75,7 +75,7 @@ function parseAttribute(key: OptionKey, value: string | null): unknown {
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const LEVEL_SEP = '\u001f';
+const HUB = Symbol('hub');
 const INSET_EDGES = ['top', 'right', 'bottom', 'left'] as const;
 const SUPPORTS_POPOVER = typeof HTMLElement !== 'undefined' && 'showPopover' in HTMLElement.prototype;
 const Base: typeof HTMLElement =
@@ -89,8 +89,9 @@ const ARROWS: Record<string, Vec> = {
 };
 
 function toggleAttr(el: Element, name: string, on: boolean, value = '') {
-  if (on) el.setAttribute(name, value);
-  else el.removeAttribute(name);
+  if (on) {
+    if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+  } else if (el.hasAttribute(name)) el.removeAttribute(name);
 }
 
 /** `part="node node-active node-current"`: states as part names, since `::part()` can't match attributes. */
@@ -109,6 +110,8 @@ interface View {
   /** Where the node grows from / folds back to. */
   from: Vec;
   leaveTimer: number;
+  enterTimer: number;
+  labelAnimation: Animation | null;
   /** Where the label is shown, if it is. */
   shownAt: Rect | null;
 }
@@ -150,6 +153,8 @@ export class UnfoldNav extends Base {
   private views = new Map<string, View>();
   private placed = new Map<string, PlacedNode>();
   private fanCache = new Map<string, Fan>();
+  private layoutKey: string | null = null;
+  private labelClearance = 8;
   private labelSizes = new Map<string, Size>();
   /** Open branches with a page show a "→" hint: their label is measured with it. */
   private branchLabelSizes = new Map<string, Size>();
@@ -158,7 +163,6 @@ export class UnfoldNav extends Base {
   private narrowBranchSizes = new Map<string, Size>();
   private hub: Circle = { x: 0, y: 0, r: 30 };
   private bounds: Rect = { x: 0, y: 0, w: 0, h: 0 };
-  private animationTimers = new Set<number>();
 
   private pointerId: number | null = null;
   private pointerType = 'mouse';
@@ -167,10 +171,10 @@ export class UnfoldNav extends Base {
   private leftHub = false;
   private holdTimer = 0;
   private dwellTimer = 0;
-  private dwellTarget: string | null = null;
+  private dwellTarget: string | typeof HUB | null = null;
   private closeTimer = 0;
   private resizeFrame = 0;
-  private openedAt = 0;
+  private openingClick = false;
   private lastPointerUp = -Infinity;
   private typeahead = { text: '', at: 0 };
   private lastKeyActivation = -Infinity;
@@ -249,6 +253,9 @@ export class UnfoldNav extends Base {
     trigger.addEventListener('keydown', this.onTriggerKey);
     trigger.addEventListener('contextmenu', (e) => e.preventDefault());
     overlay.addEventListener('click', this.onOverlayClick);
+    overlay.addEventListener('pointerdown', () => {
+      this.openingClick = false;
+    });
     overlay.addEventListener('pointermove', this.onOverlayHover);
     overlay.addEventListener('keydown', this.onOverlayKey);
     overlay.addEventListener('cancel', this.onCancel);
@@ -268,20 +275,30 @@ export class UnfoldNav extends Base {
     const tree = pagesChanged ? buildTree(next.pages) : this.tree;
     this.opts = next;
     this.tree = tree;
+    const wasOpen = pagesChanged && this.state === 'open';
     if (pagesChanged && this.state !== 'closed') {
-      const wasOpen = this.state === 'open';
       const hadFocus = this.focusInside();
       this.finishClose();
       if (hadFocus && this.isConnected) this.els.trigger.focus({ preventScroll: true });
-      if (wasOpen) this.emit('unfold-close');
     }
-    this.fanCache.clear();
+    this.invalidateLayout();
     this.clearLabelSizes();
     this.applyOptions();
     if (this.state === 'open') {
+      this.computeCurrent();
+      if (Object.hasOwn(options, 'iconResolver')) {
+        for (const v of this.views.values()) {
+          v.node
+            .querySelector('.icon')!
+            .replaceChildren(
+              renderIcon(v.tree.page.icon, next.iconResolver, v.tree.page) ?? monogram(v.tree.page.label),
+            );
+        }
+      }
       this.measure();
       this.render();
     }
+    if (wasOpen) this.emit('unfold-close');
     return this;
   }
 
@@ -297,6 +314,8 @@ export class UnfoldNav extends Base {
   close({ focusTrigger = false }: { focusTrigger?: boolean } = {}): void {
     if (this.state !== 'open') return;
     const hadFocus = this.focusInside();
+    const duration = this.duration;
+    const reducedMotion = this.reducedMotion;
     this.state = 'closing';
     window.clearTimeout(this.holdTimer);
     window.clearTimeout(this.dwellTimer);
@@ -323,9 +342,9 @@ export class UnfoldNav extends Base {
     trigger.setAttribute('aria-expanded', 'false');
 
     const views = [...this.views.values()].filter((v) => !v.leaveTimer).reverse();
-    const stagger = this.reducedMotion ? 0 : Math.min(12, 120 / Math.max(1, views.length));
-    views.forEach((v, i) => this.leave(v, this.hub, i * stagger));
-    this.closeTimer = window.setTimeout(() => this.finishClose(), this.duration + views.length * stagger + 60);
+    const stagger = reducedMotion ? 0 : Math.min(12, 120 / Math.max(1, views.length));
+    views.forEach((v, i) => this.leave(v, this.hub, i * stagger, duration));
+    this.closeTimer = window.setTimeout(() => this.finishClose(), duration + views.length * stagger + 60);
 
     if (focusTrigger || hadFocus) trigger.focus({ preventScroll: true });
     this.emit('unfold-close');
@@ -351,6 +370,7 @@ export class UnfoldNav extends Base {
       }
     }
     window.addEventListener('resize', this.onResize);
+    window.addEventListener('scroll', this.onScroll, true);
     document.fonts?.addEventListener('loadingdone', this.onFontsLoaded);
     this.publishInsets();
     this.onResize();
@@ -358,6 +378,7 @@ export class UnfoldNav extends Base {
 
   disconnectedCallback() {
     window.removeEventListener('resize', this.onResize);
+    window.removeEventListener('scroll', this.onScroll, true);
     window.removeEventListener('keydown', this.onWindowKey, true);
     document.fonts?.removeEventListener('loadingdone', this.onFontsLoaded);
     window.clearTimeout(this.holdTimer);
@@ -467,6 +488,10 @@ export class UnfoldNav extends Base {
     this.active = null;
     this.focusId = null;
     this.dwellTarget = null;
+    this.typeahead = { text: '', at: 0 };
+    this.openingClick = false;
+    this.invalidateLayout();
+    this.clearLabelSizes();
     this.computeCurrent();
 
     const { overlay, trigger, hub } = this.els;
@@ -476,14 +501,13 @@ export class UnfoldNav extends Base {
     hub.tabIndex = 0;
     this.present(mode === 'tap');
     trigger.setAttribute('aria-expanded', 'true');
-    this.openedAt = performance.now();
     this.measure();
     this.render();
     this.haptic(10);
     if (mode === 'drag') window.addEventListener('keydown', this.onWindowKey, true);
     this.emit('unfold-open', { mode });
 
-    if (mode === 'tap' && focus !== 'none') {
+    if (this.state === 'open' && this.isConnected && mode === 'tap' && focus !== 'none') {
       const first = this.initialFocusId();
       if (first) this.focusNode(first, focus === 'keyboard');
     }
@@ -515,9 +539,9 @@ export class UnfoldNav extends Base {
     this.dwellTarget = null;
     this.pointerId = null;
     this.els.trigger.removeAttribute('data-pressing');
-    for (const timer of this.animationTimers) window.clearTimeout(timer);
-    this.animationTimers.clear();
     for (const v of this.views.values()) {
+      this.cancelEnter(v);
+      v.labelAnimation?.cancel();
       window.clearTimeout(v.leaveTimer);
       v.node.remove();
       v.label.remove();
@@ -525,6 +549,8 @@ export class UnfoldNav extends Base {
     }
     this.views.clear();
     this.placed.clear();
+    this.invalidateLayout();
+    this.clearLabelSizes();
     const { overlay } = this.els;
     try {
       if (overlay.open) overlay.close();
@@ -573,7 +599,7 @@ export class UnfoldNav extends Base {
 
   private computeCurrent() {
     const cur = this.opts.current === undefined ? location.href : this.opts.current;
-    const node = cur ? findCurrent(this.tree, cur, location.href) : null;
+    const node = cur ? findCurrent(this.tree, cur, this.ownerDocument.baseURI) : null;
     this.currentId = node?.id ?? null;
     this.currentTrail = new Set(pathTo(node));
   }
@@ -589,7 +615,7 @@ export class UnfoldNav extends Base {
     const rect = trigger.getBoundingClientRect();
     const r = trigger.offsetWidth / 2;
     const next = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, r };
-    if (next.x !== this.hub.x || next.y !== this.hub.y || next.r !== this.hub.r) this.fanCache.clear();
+    if (next.x !== this.hub.x || next.y !== this.hub.y || next.r !== this.hub.r) this.invalidateLayout();
     this.hub = next;
     Object.assign(hub.style, {
       left: `${next.x - r}px`,
@@ -615,7 +641,8 @@ export class UnfoldNav extends Base {
       w: w - inset.l - inset.r - pad * 2,
       h: h - inset.t - inset.b - pad * 2,
     };
-    if (bounds.w !== this.bounds.w || bounds.h !== this.bounds.h) this.fanCache.clear();
+    if (Object.keys(bounds).some((key) => bounds[key as keyof Rect] !== this.bounds[key as keyof Rect]))
+      this.invalidateLayout();
     this.bounds = bounds;
   }
 
@@ -631,17 +658,28 @@ export class UnfoldNav extends Base {
   }
 
   private onResize = () => {
-    cancelAnimationFrame(this.resizeFrame);
+    if (this.resizeFrame) return;
     this.resizeFrame = requestAnimationFrame(() => {
       this.resizeFrame = 0;
       if (!this.isConnected) return;
       this.orientIcon();
       if (this.state === 'open') {
+        this.clearLabelSizes();
+        this.invalidateLayout();
         this.measure();
         this.render();
       }
     });
   };
+
+  private onScroll = () => {
+    if (this.opts.position === 'inline' && this.state === 'open') this.onResize();
+  };
+
+  private invalidateLayout() {
+    this.fanCache.clear();
+    this.layoutKey = null;
+  }
 
   private clearLabelSizes() {
     for (const m of [this.labelSizes, this.branchLabelSizes, this.narrowSizes, this.narrowBranchSizes]) m.clear();
@@ -650,7 +688,7 @@ export class UnfoldNav extends Base {
   /** Web fonts change label sizes: measure again and re-plan. */
   private onFontsLoaded = () => {
     this.clearLabelSizes();
-    this.fanCache.clear();
+    this.invalidateLayout();
     if (this.state === 'open') this.render();
   };
 
@@ -667,32 +705,40 @@ export class UnfoldNav extends Base {
       const tn = byId.get(id);
       if (!tn || !tn.children.length || (tn.parent?.id ?? '') !== (path[path.length - 1] ?? '')) break;
       path.push(id);
-      levels.push({ key: path.join(LEVEL_SEP), parentId: id, childIds: tn.children.map((c) => c.id) });
+      levels.push({ key: JSON.stringify(path), parentId: id, childIds: tn.children.map((c) => c.id) });
     }
     this.path = path;
     const onPath = new Set(path);
     const frontier = levels[levels.length - 1].parentId ?? '';
 
-    const withLabels = this.opts.labels !== 'none';
-    if (withLabels) this.measureLabels(levels.flatMap((l) => l.childIds));
-    this.placed = layoutGraph(
-      {
-        hub: this.hub,
-        bounds: this.bounds,
-        levels,
-        nodeRadius: r,
-        distance: this.opts.spacing,
-        gap: this.opts.gap,
-        edgeStyle: this.opts.edges,
-        labelSize: withLabels ? (id) => this.sizesOf(id, false) : undefined,
-        branchLabelSize: withLabels ? (id) => this.sizesOf(id, true) : undefined,
-        labelPad: this.labelPad,
-      },
-      this.fanCache,
-    );
+    const layoutKey = JSON.stringify(path);
+    const layoutChanged = layoutKey !== this.layoutKey;
+    if (layoutChanged) {
+      const withLabels = this.opts.labels !== 'none';
+      if (withLabels) this.measureLabels(levels.flatMap((l) => l.childIds));
+      this.labelClearance = this.labelPad;
+      this.placed = layoutGraph(
+        {
+          hub: this.hub,
+          bounds: this.bounds,
+          levels,
+          nodeRadius: r,
+          distance: this.opts.spacing,
+          gap: this.opts.gap,
+          edgeStyle: this.opts.edges,
+          labelSize: withLabels ? (id) => this.sizesOf(id, false) : undefined,
+          branchLabelSize: withLabels ? (id) => this.sizesOf(id, true) : undefined,
+          labelPad: this.labelClearance,
+        },
+        this.fanCache,
+      );
+      this.layoutKey = layoutKey;
+    }
 
+    let duration: number | undefined;
     for (const view of this.views.values()) {
-      if (!this.placed.has(view.tree.id) && !view.leaveTimer) this.leave(view, view.from, 0);
+      if (!this.placed.has(view.tree.id) && !view.leaveTimer)
+        this.leave(view, view.from, 0, (duration ??= this.duration));
     }
 
     const tabStop = this.focusId && this.placed.has(this.focusId) ? this.focusId : this.initialFocusId();
@@ -713,6 +759,10 @@ export class UnfoldNav extends Base {
           window.clearTimeout(view.leaveTimer);
           view.leaveTimer = 0;
           view.node.removeAttribute('data-leave');
+          view.node.removeAttribute('aria-hidden');
+          view.node.inert = false;
+          view.node.style.removeProperty('--_delay');
+          view.edge.style.removeProperty('--_delay');
           view.edge.setAttribute('data-shown', '');
         }
         insertAfter = view.node;
@@ -720,16 +770,16 @@ export class UnfoldNav extends Base {
 
         const { node, edge, tree: tn } = view;
         const state = onPath.has(id) ? 'path' : (tn.parent?.id ?? '') === frontier ? 'frontier' : 'dim';
-        node.dataset.state = state;
+        toggleAttr(node, 'data-state', true, state);
         toggleAttr(node, 'data-active', id === this.active);
         toggleAttr(node, 'data-current', id === this.currentId);
         toggleAttr(node, 'data-current-trail', this.currentTrail.has(id) && id !== this.currentId);
-        if (id === this.currentId) node.setAttribute('aria-current', 'page');
-        else node.removeAttribute('aria-current');
-        if (tn.children.length) node.setAttribute('aria-expanded', String(onPath.has(id)));
-        node.tabIndex = id === tabStop ? 0 : -1;
-        node.style.setProperty('--_a', `${pl.angle.toFixed(4)}rad`);
-        if (!entering.includes(view)) node.style.translate = `${pl.x}px ${pl.y}px`;
+        toggleAttr(node, 'aria-current', id === this.currentId, 'page');
+        if (tn.children.length) toggleAttr(node, 'aria-expanded', true, String(onPath.has(id)));
+        const tabIndex = id === tabStop ? 0 : -1;
+        if (node.tabIndex !== tabIndex) node.tabIndex = tabIndex;
+        if (layoutChanged) node.style.setProperty('--_a', `${pl.angle.toFixed(4)}rad`);
+        if (layoutChanged && !entering.includes(view)) node.style.translate = `${pl.x}px ${pl.y}px`;
 
         setParts(node, 'node', {
           active: id === this.active,
@@ -742,10 +792,12 @@ export class UnfoldNav extends Base {
           disabled: !!tn.page.disabled,
         });
 
-        const parent = level.parentId == null ? this.hub : { ...this.placed.get(level.parentId)!, r };
         const lit = onPath.has(id) || id === this.active;
         const dimEdge = state === 'dim' && id !== this.active;
-        edge.setAttribute('d', edgeShape(parent, { x: pl.x, y: pl.y, r }, this.opts.edges, pl.parentAngle).d);
+        if (layoutChanged) {
+          const parent = level.parentId == null ? this.hub : { ...this.placed.get(level.parentId)!, r };
+          edge.setAttribute('d', edgeShape(parent, { x: pl.x, y: pl.y, r }, this.opts.edges, pl.parentAngle).d);
+        }
         toggleAttr(edge, 'data-lit', lit);
         toggleAttr(edge, 'data-dim', dimEdge);
         setParts(edge, 'edge', { lit, dim: dimEdge });
@@ -766,7 +818,7 @@ export class UnfoldNav extends Base {
       'aria-label',
       !path.length ? this.text.close : backTo ? this.text.back.replace('{label}', backTo) : this.text.backToTop,
     );
-    toggleAttr(hub, 'data-active', this.mode === 'drag' && this.dwellTarget === 'hub');
+    toggleAttr(hub, 'data-active', this.mode === 'drag' && this.dwellTarget === HUB);
     setParts(hub, 'hub', { back: path.length > 0, active: hub.hasAttribute('data-active') });
   }
 
@@ -878,12 +930,23 @@ export class UnfoldNav extends Base {
     if (page.color) edge.style.setProperty('--_lit', page.color);
     this.els.edges.append(edge);
 
-    return { tree: tn, node, label, edge, from: pl.from, leaveTimer: 0, shownAt: null };
+    return {
+      tree: tn,
+      node,
+      label,
+      edge,
+      from: pl.from,
+      leaveTimer: 0,
+      enterTimer: 0,
+      labelAnimation: null,
+      shownAt: null,
+    };
   }
 
   /** New nodes grow out of their parent, staggered, with their edge drawing along. */
   private animateIn(views: View[]) {
     const stagger = this.reducedMotion ? 0 : 22;
+    const duration = this.duration;
     for (const v of views) {
       v.node.style.transition = 'none';
       v.node.style.translate = `${v.from.x}px ${v.from.y}px`;
@@ -897,22 +960,27 @@ export class UnfoldNav extends Base {
       v.node.style.setProperty('--_delay', `${delay}ms`);
       v.edge.style.setProperty('--_delay', `${delay}ms`);
       // Labels appear once their node has (nearly) arrived, so nothing moves through them.
-      v.label.style.setProperty('--_label-delay', `${delay + this.duration * 0.6}ms`);
+      v.label.style.setProperty('--_label-delay', `${delay + duration * 0.6}ms`);
       v.node.style.translate = `${pl.x}px ${pl.y}px`;
       v.node.removeAttribute('data-enter');
       v.edge.setAttribute('data-shown', '');
-      const timer = window.setTimeout(() => {
-        this.animationTimers.delete(timer);
-        v.node.style.removeProperty('--_delay');
-        v.edge.style.removeProperty('--_delay');
-        v.label.style.removeProperty('--_label-delay');
-      }, delay + this.duration);
-      this.animationTimers.add(timer);
+      v.enterTimer = window.setTimeout(() => this.cancelEnter(v), delay + duration);
     });
   }
 
-  private leave(view: View, to: Vec, delay: number) {
+  private cancelEnter(view: View) {
+    window.clearTimeout(view.enterTimer);
+    view.enterTimer = 0;
+    view.node.style.removeProperty('--_delay');
+    view.edge.style.removeProperty('--_delay');
+    view.label.style.removeProperty('--_label-delay');
+  }
+
+  private leave(view: View, to: Vec, delay: number, duration: number) {
     const { node, edge, label } = view;
+    this.cancelEnter(view);
+    view.labelAnimation?.cancel();
+    view.labelAnimation = null;
     // Don't let focus fall out of the dialog with the node: hand it to the parent (or the centre button).
     if (this.shadowRoot?.activeElement === node && this.state === 'open') {
       const parent = view.tree.parent ? this.views.get(view.tree.parent.id) : null;
@@ -931,6 +999,8 @@ export class UnfoldNav extends Base {
     edge.setAttribute('part', 'edge');
     label.setAttribute('part', 'label');
     node.tabIndex = -1;
+    node.setAttribute('aria-hidden', 'true');
+    node.inert = true;
     edge.removeAttribute('data-shown');
     label.removeAttribute('data-visible');
     view.shownAt = null;
@@ -941,7 +1011,7 @@ export class UnfoldNav extends Base {
         edge.remove();
         this.views.delete(view.tree.id);
       },
-      delay + this.duration * 0.7 + 40,
+      delay + duration * 0.7 + 40,
     );
   }
 
@@ -956,6 +1026,17 @@ export class UnfoldNav extends Base {
    */
   private renderLabels() {
     const mode = this.opts.labels;
+    if (mode === 'none') {
+      for (const v of this.views.values()) {
+        toggleAttr(v.label, 'data-visible', false);
+        toggleAttr(v.label, 'data-active', false);
+        setParts(v.label, 'label', { active: false, path: v.node.dataset.state === 'path' });
+        v.shownAt = null;
+        v.labelAnimation?.cancel();
+        v.labelAnimation = null;
+      }
+      return;
+    }
     const r = this.opts.nodeSize / 2;
     const live = [...this.views.values()].filter((v) => !v.leaveTimer);
     const circleOf = new Map<string, Circle>();
@@ -967,7 +1048,8 @@ export class UnfoldNav extends Base {
     const shown = new Map<string, Rect>();
     const narrowed = new Set<string>();
     const compact = new Set<string>();
-    const pad = this.labelPad;
+    const pad = this.labelClearance;
+    const reducedMotion = this.reducedMotion;
     const ctx = (except: string | null, withEdges: Vec[][] = edges): LabelContext => ({
       bounds: this.bounds,
       circles: [this.hub, ...circleOf.values()],
@@ -1037,7 +1119,7 @@ export class UnfoldNav extends Base {
     // 2. The highlighted page: with its description if there's room, else just its name. Only this node
     //    grows, so its label may come closer to the others than reserved labels do.
     const activeView = this.active ? this.views.get(this.active) : null;
-    if (activeView && !activeView.leaveTimer && mode !== 'none') {
+    if (activeView && !activeView.leaveTimer) {
       const id = activeView.tree.id;
       const pl = this.placed.get(id)!;
       const node = circleOf.get(id)!;
@@ -1120,6 +1202,8 @@ export class UnfoldNav extends Base {
       if (!compact.has(id)) v.label.removeAttribute('data-compact');
       setParts(v.label, 'label', { active: isActive, path: v.node.dataset.state === 'path' });
       if (!rect) {
+        v.labelAnimation?.cancel();
+        v.labelAnimation = null;
         v.label.removeAttribute('data-visible');
         v.shownAt = null;
         continue;
@@ -1128,8 +1212,12 @@ export class UnfoldNav extends Base {
       v.label.style.translate = `${rect.x.toFixed(1)}px ${rect.y.toFixed(1)}px`;
       v.label.setAttribute('data-visible', '');
       // Never slide: reappear at the new spot instead.
-      if (moved && !this.reducedMotion)
-        v.label.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: 'ease-out' });
+      if (moved) {
+        v.labelAnimation?.cancel();
+        v.labelAnimation = reducedMotion
+          ? null
+          : v.label.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160, easing: 'ease-out' });
+      }
       v.shownAt = rect;
     }
   }
@@ -1181,7 +1269,10 @@ export class UnfoldNav extends Base {
     this.holdTimer = 0;
     this.els.trigger.removeAttribute('data-pressing');
     if (this.state !== 'open') {
-      if (tapped && this.opts.openOnTap) this.show('tap', 'pointer');
+      if (tapped && this.opts.openOnTap) {
+        this.show('tap', 'pointer');
+        this.openingClick = this.isOpen;
+      }
       return;
     }
     if (this.mode === 'drag') this.release({ x: e.clientX, y: e.clientY });
@@ -1208,7 +1299,7 @@ export class UnfoldNav extends Base {
 
   private onTriggerClick = (e: MouseEvent) => {
     // Pointer taps are handled above; this catches keyboard and assistive-technology activation.
-    if (performance.now() - this.lastPointerUp < 700) return;
+    if (e.detail !== 0 && performance.now() - this.lastPointerUp < 700) return;
     if (this.state === 'open') this.close({ focusTrigger: true });
     else this.show('tap', e.detail === 0 ? 'keyboard' : 'pointer');
   };
@@ -1221,8 +1312,8 @@ export class UnfoldNav extends Base {
   };
 
   /** Node, its visible label, or the centre button under a point. */
-  private hitAt(p: Vec): string | null {
-    const ids: string[] = [];
+  private hitAt(p: Vec): string | typeof HUB | null {
+    const ids: (string | typeof HUB)[] = [];
     const circles: Circle[] = [];
     const r = this.opts.nodeSize / 2;
     for (const [id, pl] of this.placed) {
@@ -1231,7 +1322,7 @@ export class UnfoldNav extends Base {
       ids.push(id);
       circles.push({ x: pl.x, y: pl.y, r });
     }
-    ids.push('hub');
+    ids.push(HUB);
     circles.push(this.hub);
     const i = hitTest(p, circles, this.pointerType === 'mouse' ? 6 : 14);
     if (i >= 0) return ids[i];
@@ -1242,9 +1333,9 @@ export class UnfoldNav extends Base {
 
   private dragTo(p: Vec) {
     const hit = this.hitAt(p);
-    if (hit === 'hub') {
+    if (hit === HUB) {
       this.setActive(null);
-      this.dwell(this.leftHub && this.path.length ? 'hub' : null);
+      this.dwell(this.leftHub && this.path.length ? HUB : null);
     } else if (hit) {
       this.leftHub = true;
       this.setActive(hit);
@@ -1253,10 +1344,10 @@ export class UnfoldNav extends Base {
       if (Math.hypot(p.x - this.hub.x, p.y - this.hub.y) > this.hub.r + 6) this.leftHub = true;
       this.setActive(null);
       // Overshooting a branch outwards keeps it unfolding instead of cancelling.
-      const keep = this.dwellTarget && this.dwellTarget !== 'hub' && this.isBeyond(p, this.dwellTarget);
+      const keep = this.dwellTarget && this.dwellTarget !== HUB && this.isBeyond(p, this.dwellTarget);
       if (!keep) this.dwell(null);
     }
-    toggleAttr(this.els.hub, 'data-active', this.dwellTarget === 'hub');
+    toggleAttr(this.els.hub, 'data-active', this.dwellTarget === HUB);
   }
 
   private isBeyond(p: Vec, id: string): boolean {
@@ -1275,7 +1366,7 @@ export class UnfoldNav extends Base {
   }
 
   /** Hovering long enough unfolds a branch (or, for a leaf, folds away whatever its siblings had open). */
-  private dwell(target: string | null) {
+  private dwell(target: string | typeof HUB | null) {
     if (target === this.dwellTarget) return;
     window.clearTimeout(this.dwellTimer);
     this.dwellTimer = 0;
@@ -1283,7 +1374,7 @@ export class UnfoldNav extends Base {
     if (!target) return;
     this.dwellTimer = window.setTimeout(() => {
       this.dwellTimer = 0;
-      if (target === 'hub') return this.setPath([]);
+      if (target === HUB) return this.setPath([]);
       const tn = this.tree.byId.get(target);
       if (!tn || tn.page.disabled) return;
       this.setPath(pathTo(tn.children.length ? tn : tn.parent));
@@ -1295,7 +1386,7 @@ export class UnfoldNav extends Base {
     this.dwellTimer = 0;
     this.dwellTarget = null;
     const hit = this.hitAt(p);
-    if (hit && hit !== 'hub') {
+    if (hit && hit !== HUB) {
       const tn = this.tree.byId.get(hit)!;
       if (!tn.page.disabled) {
         if (tn.page.href || !tn.children.length) return this.select(tn, 'release');
@@ -1311,6 +1402,7 @@ export class UnfoldNav extends Base {
   /** From drag to tap: the dialog becomes modal and focus moves into it. */
   private toTapMode(focusId: string | null) {
     this.mode = 'tap';
+    this.openingClick = true;
     this.els.overlay.dataset.mode = 'tap';
     window.removeEventListener('keydown', this.onWindowKey, true);
     this.present(true);
@@ -1322,13 +1414,16 @@ export class UnfoldNav extends Base {
   private onOverlayHover = (e: PointerEvent) => {
     if (this.state !== 'open' || this.mode !== 'tap' || e.pointerType !== 'mouse') return;
     const hit = this.hitAt({ x: e.clientX, y: e.clientY });
-    this.setActive(hit === 'hub' ? null : hit);
+    this.setActive(hit === HUB ? null : hit);
   };
 
   private onOverlayClick = (e: MouseEvent) => {
     if (this.state !== 'open' || this.mode !== 'tap') return;
     const now = performance.now();
-    if (now - this.openedAt < 250) return; // the click that finished the opening tap
+    if (this.openingClick && e.detail !== 0) {
+      this.openingClick = false;
+      return; // the click that finished the opening gesture
+    }
     if (e.detail === 0 && now - this.lastKeyActivation < 500) return; // already handled on keydown
     const target = e.target as Element;
     if (target.closest('.hub')) return this.hubAction(e.detail === 0);
@@ -1336,7 +1431,7 @@ export class UnfoldNav extends Base {
     let id = node?.dataset.id ?? null;
     if (!id && e.detail !== 0) {
       const hit = this.hitAt({ x: e.clientX, y: e.clientY });
-      id = hit === 'hub' ? null : hit;
+      id = hit === HUB ? null : hit;
     }
     const tn = id ? this.tree.byId.get(id) : null;
     if (!tn) return this.close();
@@ -1353,7 +1448,7 @@ export class UnfoldNav extends Base {
   /* ---------------------------------------------------------------- keyboard */
 
   private onOverlayKey = (e: KeyboardEvent) => {
-    if (this.state !== 'open') return;
+    if (this.state !== 'open' || e.isComposing) return;
     const key = e.key;
     if (key === 'Escape') {
       // Escape closes the whole dialog (Left / Backspace step back a level).
@@ -1380,6 +1475,7 @@ export class UnfoldNav extends Base {
 
     if (key === 'Enter' || key === ' ') {
       e.preventDefault();
+      if (e.repeat) return;
       this.lastKeyActivation = performance.now();
       return this.activateKey(focused, e.metaKey || e.ctrlKey);
     }
@@ -1498,7 +1594,9 @@ export class UnfoldNav extends Base {
 
   private typeAhead(f: TreeNode, char: string) {
     const now = performance.now();
-    this.typeahead.text = now - this.typeahead.at < 700 ? this.typeahead.text + char.toLowerCase() : char.toLowerCase();
+    const letter = char.toLowerCase();
+    this.typeahead.text =
+      now - this.typeahead.at < 700 && this.typeahead.text !== letter ? this.typeahead.text + letter : letter;
     this.typeahead.at = now;
     const pool = this.opts.arrowKeys === 'spatial' ? (f.parent?.children ?? []).map((n) => n.id) : this.visibleOrder();
     const query = this.typeahead.text;
@@ -1621,7 +1719,7 @@ export class UnfoldNav extends Base {
     const raw = getComputedStyle(this.els.root).getPropertyValue('--_dur').trim();
     const n = parseFloat(raw);
     if (!Number.isFinite(n)) return 340;
-    return raw.endsWith('ms') ? n : raw.endsWith('s') ? n * 1000 : n;
+    return Math.max(0, raw.endsWith('ms') ? n : raw.endsWith('s') ? n * 1000 : n);
   }
 }
 
