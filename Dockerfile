@@ -1,3 +1,10 @@
+FROM golang:1.27.3-alpine AS caddy-build
+ENV GOMAXPROCS=2
+RUN apk add --no-cache git
+WORKDIR /src
+RUN git clone --depth 1 --branch v2.11.7 https://github.com/caddyserver/caddy.git .
+RUN go get golang.org/x/net@v0.60.0 && CGO_ENABLED=0 go build -trimpath -o /tmp/caddy ./cmd/caddy
+
 FROM node:24.22.1-bookworm-slim AS build
 
 WORKDIR /app
@@ -9,11 +16,10 @@ COPY src ./src
 COPY demo ./demo
 RUN pnpm build:showcase
 
-FROM caddy:2-alpine
+FROM caddy:2.11.7-alpine
+RUN apk upgrade --no-cache
+COPY --from=caddy-build /tmp/caddy /usr/bin/caddy
 
-# The upstream binary carries a privileged-port capability. Remove it because
-# this image serves port 8080 with all Linux capabilities dropped.
-RUN setcap -r /usr/bin/caddy
 COPY deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/showcase-dist /srv
 ENV XDG_DATA_HOME=/tmp/caddy-data
