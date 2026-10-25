@@ -20,7 +20,7 @@ FROM caddy:2.11.7-alpine
 RUN apk upgrade --no-cache
 COPY --from=caddy-build /tmp/caddy /usr/bin/caddy
 
-COPY deploy/Caddyfile /etc/caddy/Caddyfile
+COPY --chmod=644 deploy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/showcase-dist /srv
 ENV XDG_DATA_HOME=/tmp/caddy-data
 USER 1000:1000
